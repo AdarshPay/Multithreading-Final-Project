@@ -1,0 +1,8 @@
+h5py==3.2.1
+mpi4py==3.0.3
+numpy==1.26.3
+pillow==11.3.0
+torch==1.7.1+cu101
+torchaudio==0.7.2
+torchvision==0.8.2+cu101
+typing_extensions==4.15.0
