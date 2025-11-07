@@ -3,6 +3,7 @@ cdw or cd $WORK to get to your working directory
 
 2
 idev -p rtx
+export PATH=$PWD/../../julia-1.9.3/bin:$PATH
 
 3
 module load python3/3.9.2

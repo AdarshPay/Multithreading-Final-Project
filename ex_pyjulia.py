@@ -1,4 +1,5 @@
 from julia import Main
+julia.JULIA_BIN = "/work2/11161/hprasad/julia-1.9.3/bin/julia"
 import torch
 import numpy as np
 
