@@ -14,9 +14,11 @@ Usage:
 This file is intended for learning, debugging, and modification. For production and pretrained weights, refer to torchvision.models.vgg.
 """
 
+from julia.api import Julia
+jl = Julia(compiled_modules = False)
 from julia import Main
-Main.include("conv2d_gpu.jl")
-julia_conv = Main.my_conv  # the Julia function
+Main.include("dense_s.jl")
+julia_conv = Main.dense_serial  # the Julia function
 
 import torch
 import torch.nn as nn
@@ -26,8 +28,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("GPU", torch.cude.is_available())
+device = torch.device("cpu")
+print("GPU", torch.cuda.is_available())
 
 
 transform = transforms.Compose([
@@ -175,8 +177,19 @@ class VGG16(nn.Module):
         x = self.pool5(x)
 
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
+        
+        x_flat = x.view(x.size(0), -1)
+        W = self.classifier[0].weight.data.cpu().numpy().astype('float32').T
+        b = self.classifier[0].bias.data.cpu().numpy().astype('float32')
+        x_np_out = Main.dense_serial(x_flat.detach().cpu().numpy().astype('float32'), W, b)
+
+        x = torch.from_numpy(x_np_out).to(x.device)
+        
+        #x = torch.flatten(x, 1)
+
+#        x = self.classifier(x)
+        for layer in self.classifier[1:]:
+            x = layer(x)
         return x
 
     def _initialize_weights(self):
@@ -234,4 +247,5 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
-    train_one_epoch(model, train_loader, criterion, optimizer, device='cuda')
+
+    train_one_epoch(model, train_loader, criterion, optimizer, device='cpu')
