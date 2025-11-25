@@ -148,9 +148,9 @@ class VGG16(nn.Module):
         return torch.from_numpy(out_np).to(x_tensor.device)
 
     def forward(self, x):
-        x = x.to(gpu)
-        print("GPU", torch.cuda.is_available())
-        print("Input device:", x.device)
+        #x = x.to(gpu)
+        #print("GPU", torch.cuda.is_available())
+        #print("Input device:", x.device)
         # Block 1
         x = self.conv1_1(x)
         if self.batch_norm: x = self.bn1_1(x)
