@@ -243,7 +243,7 @@ class VGG16(nn.Module):
 
 def train_one_epoch(model, dataloader, criterion, optimizer, device='cpu'):
     # Switch to evaluate mode (inference only)
-    model.to(device)
+    #model.to(device)
     model.eval()
     
     # Limit number of batches for the test
@@ -270,7 +270,7 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device='cpu'):
 if __name__ == '__main__':
     # Quick sanity check
     model = VGG16(num_classes=10)
-    model = model.to(device)
+    #model = model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
