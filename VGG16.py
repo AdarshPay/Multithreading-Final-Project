@@ -30,9 +30,9 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
-device = torch.device("cpu")
+cpu = torch.device("cpu")
+gpu = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("GPU", torch.cuda.is_available())
-
 
 transform = transforms.Compose([
     transforms.Resize(224),  # VGG16 expects 224x224
@@ -148,6 +148,9 @@ class VGG16(nn.Module):
         return torch.from_numpy(out_np).to(x_tensor.device)
 
     def forward(self, x):
+        x = x.to(gpu)
+        print("GPU", torch.cuda.is_available())
+        print("Input device:", x.device)
         # Block 1
         x = self.conv1_1(x)
         if self.batch_norm: x = self.bn1_1(x)
@@ -206,6 +209,8 @@ class VGG16(nn.Module):
         x = torch.flatten(x, 1)
 
 #        x = self.classifier(x)
+        x = x.to(cpu)
+        print("Input device:", x.device)
         for layer in self.classifier:
             if isinstance(layer, nn.Linear):
                 x = self._julia_linear_forward(layer, x)
