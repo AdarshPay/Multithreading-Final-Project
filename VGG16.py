@@ -150,7 +150,7 @@ class VGG16(nn.Module):
     def forward(self, x):
         x = x.to(gpu)
         print("GPU", torch.cuda.is_available())
-        print("Input device:", x.device)
+        print("Input device for conv:", x.device)
         # Block 1
         x = self.conv1_1(x)
         if self.batch_norm: x = self.bn1_1(x)
@@ -159,6 +159,7 @@ class VGG16(nn.Module):
         if self.batch_norm: x = self.bn1_2(x)
         x = self.relu1_2(x)
         x = self.pool1(x)
+        print("block 1 done")
 
         # Block 2
         x = self.conv2_1(x)
@@ -168,6 +169,7 @@ class VGG16(nn.Module):
         if self.batch_norm: x = self.bn2_2(x)
         x = self.relu2_2(x)
         x = self.pool2(x)
+        print("block 2 done")
 
         # Block 3
         x = self.conv3_1(x)
@@ -180,6 +182,7 @@ class VGG16(nn.Module):
         if self.batch_norm: x = self.bn3_3(x)
         x = self.relu3_3(x)
         x = self.pool3(x)
+        print("block 3 done")
 
         # Block 4
         x = self.conv4_1(x)
@@ -192,6 +195,7 @@ class VGG16(nn.Module):
         if self.batch_norm: x = self.bn4_3(x)
         x = self.relu4_3(x)
         x = self.pool4(x)
+        print("block 4 done")
 
         # Block 5
         x = self.conv5_1(x)
@@ -204,13 +208,14 @@ class VGG16(nn.Module):
         if self.batch_norm: x = self.bn5_3(x)
         x = self.relu5_3(x)
         x = self.pool5(x)
+        print("block 5 done")
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
 
 #        x = self.classifier(x)
         x = x.to(cpu)
-        print("Input device:", x.device)
+        print("Input device for classifier:", x.device)
         for layer in self.classifier:
             if isinstance(layer, nn.Linear):
                 x = self._julia_linear_forward(layer, x)
