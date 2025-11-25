@@ -241,7 +241,7 @@ class VGG16(nn.Module):
 #   criterion = nn.CrossEntropyLoss()
 #   train_one_epoch(model, train_loader, criterion, optimizer, device='cuda')
 
-def train_one_epoch(model, dataloader, criterion, optimizer, device='cpu'):
+def train_one_epoch(model, dataloader, criterion, optimizer, device):
     # Switch to evaluate mode (inference only)
     #model.to(device)
     model.eval()
@@ -275,4 +275,4 @@ if __name__ == '__main__':
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
 
-    train_one_epoch(model, train_loader, criterion, optimizer, device='cpu')
+    train_one_epoch(model, train_loader, criterion, optimizer, gpu)
