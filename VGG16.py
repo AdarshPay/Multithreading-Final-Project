@@ -17,8 +17,10 @@ This file is intended for learning, debugging, and modification. For production 
 from julia.api import Julia
 jl = Julia(compiled_modules = False)
 from julia import Main
-Main.include("dense_s.jl")
-julia_conv = Main.dense_serial  # the Julia function
+Main.include("dense_serial.jl")
+
+# Set the current Julia kernel to use dense_serial
+current_julia_kernel = Main.DenseOps.dense_serial
 
 import torch
 import torch.nn as nn
@@ -121,6 +123,30 @@ class VGG16(nn.Module):
         # Initialize weights
         self._initialize_weights()
 
+    def _julia_linear_forward(self, layer, x_tensor):
+        # Prepare data in to numpy format
+        x_np = x_tensor.detach().cpu().numpy().astype('float32')
+        W_np = layer.weight.data.cpu().numpy().astype('float32').T.copy()
+        b_np = layer.bias.data.cpu().numpy().astype('float32')
+
+        #------------------------------------------------------------------------
+        # Prints for debugging, checking to make sure shapes of tensores align
+        print(f"Layer Debug")
+        print(f"Input X shape:  {x_np.shape} (Batch x In_Feat)")
+        print(f"Weight W shape: {W_np.shape} (In_Feat x Out_Feat)")
+        print(f"Bias b shape:   {b_np.shape}")
+        
+        # Check compatibility
+        if x_np.shape[1] != W_np.shape[0]:
+            print(f"MISMATCH DETECTED! Input cols ({x_np.shape[1]}) != Weight rows ({W_np.shape[0]})")
+        else:
+            print(f"Shapes align.")
+        #------------------------------------------------------------------------
+        # use the selected julia kernel for the forward pass (serial or multithreaded)
+        out_np = current_julia_kernel(x_np, W_np, b_np)
+        
+        return torch.from_numpy(out_np).to(x_tensor.device)
+
     def forward(self, x):
         # Block 1
         x = self.conv1_1(x)
@@ -177,19 +203,14 @@ class VGG16(nn.Module):
         x = self.pool5(x)
 
         x = self.avgpool(x)
-        
-        x_flat = x.view(x.size(0), -1)
-        W = self.classifier[0].weight.data.cpu().numpy().astype('float32').T
-        b = self.classifier[0].bias.data.cpu().numpy().astype('float32')
-        x_np_out = Main.dense_serial(x_flat.detach().cpu().numpy().astype('float32'), W, b)
-
-        x = torch.from_numpy(x_np_out).to(x.device)
-        
-        #x = torch.flatten(x, 1)
+        x = torch.flatten(x, 1)
 
 #        x = self.classifier(x)
-        for layer in self.classifier[1:]:
-            x = layer(x)
+        for layer in self.classifier:
+            if isinstance(layer, nn.Linear):
+                x = self._julia_linear_forward(layer, x)
+            else:
+                x = layer(x)
         return x
 
     def _initialize_weights(self):
@@ -216,28 +237,29 @@ class VGG16(nn.Module):
 #   train_one_epoch(model, train_loader, criterion, optimizer, device='cuda')
 
 def train_one_epoch(model, dataloader, criterion, optimizer, device='cpu'):
+    # Switch to evaluate mode (inference only)
     model.to(device)
-    model.train()
-    total_loss, total_correct, total_samples = 0.0, 0, 0
+    model.eval()
+    
+    # Limit number of batches for the test
+    limit_batches = 20
 
-    for images, labels in dataloader:
-        images, labels = images.to(device), labels.to(device)
+    print(f"--- Running Inference (No Internal Timer) ---")
 
-        optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
+    # Disable gradients to avoid errors with Julia
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(dataloader):
+            if i >= limit_batches:
+                break
+            
+            images, labels = images.to(device), labels.to(device)
 
-        # statistics
-        total_loss += loss.item() * images.size(0)
-        _, preds = outputs.max(1)
-        total_correct += (preds == labels).sum().item()
-        total_samples += images.size(0)
+            # Run the Forward Pass (Julia Kernel)
+            outputs = model(images)
+            
+            print(f"Batch {i+1} complete")
 
-    avg_loss = total_loss / total_samples
-    accuracy = total_correct / total_samples
-    print(f"Train Loss: {avg_loss:.4f} | Accuracy: {accuracy*100:.2f}%")
+    print("--- Done ---")
 
 
 if __name__ == '__main__':
