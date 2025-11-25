@@ -270,6 +270,8 @@ def train_one_epoch(model, dataloader, criterion, optimizer, device):
 if __name__ == '__main__':
     # Quick sanity check
     model = VGG16(num_classes=10)
+    model.to(gpu)              # conv layers on GPU
+    model.classifier.to(cpu)   # classifier layers on CPU
     #model = model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
