@@ -1,0 +1,31 @@
+We have a singularity container which has CUDA, Julia, Python, PyTorch, etc.
+It's in a .sif file called taccjulia.sif
+
+
+
+====== BRINGING UP THE CONTAINER ======
+IDEA: 
+Entering the container in a shell. Binding our github repo directory to the container!
+	$ apptainer shell --nv --bind (host_path):(container_path) (singularity file)
+
+DO:
+1. $ cdw or cd $WORK
+
+2. Download the tgz and unzip it into your working directory and into your repo's directory.
+
+3. Your working directory should be $WORK/Multithreading-Final-Project
+
+4. Unzip the tgz file so you just have taccjulia.sif
+
+5. $ idev -p rtx
+
+5. $ apptainer shell --nv --bind $WORK/Multithreaded-Final-Project:/workspace taccjulia.sif
+=======================================
+
+
+====== OTHER COMMANDS ======
+
+apptainer exec --nv myjulia.sif (a command like julia, nvidia-smi, python3  -c "import torchl print(torch.cuda.is_available())")
+
+
+

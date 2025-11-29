@@ -1,0 +1,49 @@
+
+______________________
+Install Julia
+______________________
+
+cd /work2/11139/ab77394/frontera 
+wget https://julialang-s3.julialang.org/bin/linux/x64/1.11/julia-1.11.1-linux-x86_64.tar.gz t
+ar -xvf julia-1.11.1-linux-x86_64.tar.gz export PATH=/work2/11139/ab77394/frontera/julia-1.11.1/bin:$PATH
+
+*Can also add this to bashrc*
+
+Reload Bash: “source ~/.bashrc”
+
+Check if Julia is available globally: “which julia” “julia —version”
+
+----------------------------
+Step 3: Create Python 3.9 environment
+----------------------------
+conda create -n pyjulia_env python=3.9 -y 
+conda activate pyjulia_env
+----------------------------
+Step 4: Install PyTorch with GPU
+----------------------------
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+Optional CPU-only fallback:
+
+Maybe don’t do this:
+conda install pytorch torchvision torchaudio cpuonly -c pytorch -y
+----------------------------
+Step 5: Install PyJuliaapptainer shell --nv --bind $WORK/myproject:/workspace myjuliaimage.sif
+
+----------------------------
+pip install julia>=0.7.2
+
+In python3:
+Import julia
+julia.install()
+----------------------------
+Step 6: Test Julia from Python
+----------------------------
+To test it works - New python3: 
+from julia.api import Julia 
+jl = Julia(compiled_modules=False)
+from julia import Main 
+Main.eval("1 + 1")
+----------------------------
+Step 7 (Optional): Save environment
+----------------------------
+conda env export > pyjulia_env.yaml
