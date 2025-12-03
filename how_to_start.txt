@@ -23,7 +23,7 @@ DO:
 
 6. $ module load tacc-apptainer
 
-7. $ apptainer shell --nv --bind $WORK/Multithreaded-Final-Project:/workspace taccjulia.sif
+7. $ apptainer shell --nv --bind $WORK/Multithreading-Final-Project:/workspace taccjulia.sif
 
 You're now in a shell prompt with all of the dependencies!
 =======================================
