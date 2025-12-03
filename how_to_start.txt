@@ -1,6 +1,8 @@
+
 We have a singularity container which has CUDA, Julia, Python, PyTorch, etc.
 It's in a .sif file called taccjulia.sif
-
+Download it from the dropbox in the discord to your local then scp it to your working directory,
+or you can wget it to your working directory directly.
 
 
 ====== BRINGING UP THE CONTAINER ======
@@ -19,13 +21,22 @@ DO:
 
 5. $ idev -p rtx
 
-5. $ apptainer shell --nv --bind $WORK/Multithreaded-Final-Project:/workspace taccjulia.sif
+6. $ module load tacc-apptainer
+
+7. $ apptainer shell --nv --bind $WORK/Multithreaded-Final-Project:/workspace taccjulia.sif
+
+You're now in a shell prompt with all of the dependencies!
 =======================================
 
 
 ====== OTHER COMMANDS ======
-
+Instead of doing the apptainer shell command, you can just run the below one to dispatch a job to the container
 apptainer exec --nv myjulia.sif (a command like julia, nvidia-smi, python3  -c "import torchl print(torch.cuda.is_available())")
 
 
 
+====== ENSURING IT WORKED ======
+apptainer exec --nv taccjulia.sif nvidia-smi
+apptainer exec --nv taccjulia.sif julia
+apptainer exec --nv taccjulia.sif julia run_cuda.jl // replace run_cuda.jl with some julia kernel we use cuda in
+apptainer exec --nv taccjulia.sif python3 -c "import torch; print(torch.cuda.is_available())"
