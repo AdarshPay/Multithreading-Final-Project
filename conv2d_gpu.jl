@@ -1,31 +1,41 @@
 using CUDA
 
-function conv2d_gpu(input::CuArray{Float32,4}, weight::CuArray{Float32,4}, bias::CuArray{Float32,1})
-    # input: (batch, channels, height, width)
-    # weight: (out_channels, in_channels, kh, kw)
-    
-    batch, in_ch, h, w = size(input)
-    out_ch, _, kh, kw = size(weight)
-    out_h, out_w = h - kh + 1, w - kw + 1
-    
-    output = CuArray{Float32}(undef, batch, out_ch, out_h, out_w)
-    
-    @cuda threads=256 begin
-        for n in 1:batch
-            for oc in 1:out_ch
-                for ic in 1:in_ch
-                    # simple nested loop convolution
-                    for i in 1:out_h
-                        for j in 1:out_w
-                            output[n,oc,i,j] += sum(input[n,ic,i:i+kh-1,j:j+kw-1] .* weight[oc,ic,:,:])
+function conv2d_gpu_kernel(x, w, b, y)
+    H, W, C_in, N = size(x)
+    kh, kw, _, C_out = size(w)
+
+    @cuda threads=(16,16,1) blocks=(ceil(Int,H/16), ceil(Int,W/16), C_out) -> begin
+        i = (blockIdx().x-1)*blockDim().x + threadIdx().x
+        j = (blockIdx().y-1)*blockDim().y + threadIdx().y
+        c_out = blockIdx().z
+
+        if i <= H && j <= W
+            for n in 1:N
+                acc = b[c_out]
+                for ci in 1:C_in
+                    for ki in 1:kh
+                        for kj in 1:kw
+                            if i+ki-1 <= H && j+kj-1 <= W
+                                acc += x[i+ki-1,j+kj-1,ci,n] * w[ki,kj,ci,c_out]
+                            end
                         end
                     end
                 end
-                output[n,oc,:,:] .+= bias[oc]
+                y[i,j,c_out,n] = acc
             end
         end
     end
-    
-    return output
+end
+
+function conv2d_gpu(x_h, w_h, b_h)
+    # Allocate GPU arrays
+    x_d = CuArray(x_h)
+    w_d = CuArray(w_h)
+    b_d = CuArray(b_h)
+    y_d = CuArray(zeros(Float32, size(x_h,1), size(x_h,2), size(w_h,4), size(x_h,4)))
+
+    conv2d_gpu_kernel(x_d, w_d, b_d, y_d)
+
+    return y_d  # still on GPU
 end
 
