@@ -33,17 +33,34 @@ using Base.Threads
 using LoopVectorization
 
 function dense_threaded(A::Matrix{Float32}, W::Matrix{Float32}, b::Vector{Float32};
-                                 Ti::Int=16, Tj::Int=16)
-    batch_size, in_features = size(A)
-    _, out_features = size(W)
+                        Ti::Int = 64, Tj::Int = 64)
 
+    batch_size, in_features = size(A)         # A: (batch, in_features)
+    in_features_W, out_features = size(W)     # W: (in_features, out_features)
+    @assert in_features == in_features_W "A and W have incompatible shapes"
+
+    # Output
     output = Matrix{Float32}(undef, batch_size, out_features)
-    Wt = transpose(W)  # (out_features, in_features), contiguous in k
 
-    # Number of tiles in each dimension
+    # --- Make memory layout friendly for the k-loop ---
+    # At: (in_features, batch_size), contiguous along k when indexing At[k, i]
+    At = permutedims(A)  # this is a copy, but pays off for big layers
+
+    # W is already (in_features, out_features), contiguous along k when W[k, j] with fixed j
+    Wc = copy(W)         # ensure it's dense & contiguous (optional but safe)
+
+    # Pre-fill with bias so we can use += in the @turbo loop
+    @inbounds for i in 1:batch_size
+        for j in 1:out_features
+            output[i, j] = b[j]
+        end
+    end
+
+    # Number of tiles
     nTi = cld(batch_size, Ti)
     nTj = cld(out_features, Tj)
 
+    # --- Parallel over tiles ---
     @threads for tile_idx in 1:(nTi * nTj)
         ti = (tile_idx - 1) ÷ nTj + 1
         tj = (tile_idx - 1) % nTj + 1
@@ -54,19 +71,15 @@ function dense_threaded(A::Matrix{Float32}, W::Matrix{Float32}, b::Vector{Float3
         i_end = min(i_start + Ti - 1, batch_size)
         j_end = min(j_start + Tj - 1, out_features)
 
-        @inbounds for i in i_start:i_end
-            for j in j_start:j_end
-                acc::Float32 = 0.0f0
-                @turbo for k in 1:in_features
-                    acc += A[i, k] * Wt[j, k]
-                end
-                output[i, j] = acc + b[j]
-            end
+        @inbounds @turbo for i in i_start:i_end, j in j_start:j_end, k in 1:in_features
+            # reduction over k, LV will handle vectorization
+            output[i, j] += At[k, i] * Wc[k, j]
         end
     end
 
     return output
 end
+
 
 function time_kernel(f, A, W, b)
     t = @elapsed out = f(A, W, b)
