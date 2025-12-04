@@ -31,18 +31,20 @@ for _ in range(iters):
     y_jl = Main.conv2d(x_np, w_np, b_np)
 jl_time = (time.time() - start) / iters
 
-# Prepare PyTorch
+# Prepare PyTorch - transposing the julia (column major) to proper tensor shapes for PyTorch comparison
 x_torch = torch.tensor(np.transpose(x_np, (3, 2, 0, 1)))  # NCHW
 w_torch = torch.tensor(np.transpose(w_np, (3, 2, 0, 1)))  # out_ch, in_ch, kh, kw
 b_torch = torch.tensor(b_np)
 
 # Warm-up PyTorch
-F.conv2d(x_torch, w_torch, bias=b_torch, stride=1, padding=0)
+# F.conv2d(x_torch, w_torch, bias=b_torch, stride=1, padding=0)
+F.relu(F.conv2d(x_torch, w_torch, bias=b_torch, stride=1, padding=0))
 
 # Time PyTorch conv
 start = time.time()
-for _ in range(iters):
-    y_torch = F.conv2d(x_torch, w_torch, bias=b_torch, stride=1, padding=0)
+with torch.no_grad():
+    for _ in range(iters):
+        y_torch = F.relu(F.conv2d(x_torch, w_torch, bias=b_torch, stride=1, padding=0))
 torch_time = (time.time() - start) / iters
 
 # Transpose PyTorch back to HWCN

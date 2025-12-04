@@ -1,5 +1,3 @@
-using LoopVectorization
-
 # Serial 2D convolution
 function conv2d(x::Array{Float32,4}, w::Array{Float32,4}, b::Vector{Float32})
     # x: H x W x C_in x N
@@ -15,7 +13,7 @@ function conv2d(x::Array{Float32,4}, w::Array{Float32,4}, b::Vector{Float32})
     # Serial convolution loop
     for n in 1:N
         for co in 1:C_out
-            @turbo for i in 1:H_out, j in 1:W_out
+            for i in 1:H_out, j in 1:W_out
                 acc = 0.0f0
                 for ci in 1:C_in
                     for ki in 1:kh
@@ -24,10 +22,11 @@ function conv2d(x::Array{Float32,4}, w::Array{Float32,4}, b::Vector{Float32})
                         end
                     end
                 end
-                y[i, j, co, n] = acc + b[co]
+                y[i, j, co, n] = max(acc + b[co], 0.0f0) # ReLU included since it's taking max of 0 or the value
             end
         end
     end
+
 
     return y
 end
