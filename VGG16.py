@@ -18,9 +18,12 @@ from julia.api import Julia
 jl = Julia(compiled_modules = False)
 from julia import Main
 Main.include("dense_serial.jl")
+Main.include("conv2d.jl")
 
 # Set the current Julia kernel to use dense_serial
 current_julia_kernel = Main.DenseOps.dense_serial
+julia_conv2d = Main.conv2d
+
 
 import torch
 import torch.nn as nn
@@ -147,61 +150,119 @@ class VGG16(nn.Module):
         
         return torch.from_numpy(out_np).to(x_tensor.device)
 
+    def _julia_conv2d_forward(self, layer: nn.Conv2d, x_tensor: torch.Tensor):
+        """
+        Call Julia conv2d(x, w, b) for a Conv2d layer.
+
+        PyTorch: x is (N, C_in, H, W)
+        Julia:   x is (H, W, C_in, N)
+        PyTorch weights: (C_out, C_in, kh, kw)
+        Julia weights:   (kh, kw, C_in, C_out)
+
+        The Julia kernel is 'valid' conv; we handle padding in PyTorch first.
+        """
+        # Original device (likely GPU)
+        orig_device = x_tensor.device
+
+        # Move input to CPU for Julia
+        x_cpu = x_tensor.detach().to(cpu)
+
+        # Handle padding from the Conv2d layer using PyTorch (padding=1 for VGG)
+        pad_h, pad_w = layer.padding
+        if pad_h != 0 or pad_w != 0:
+            # F.pad pad order: (left, right, top, bottom)
+            x_cpu = F.pad(x_cpu, (pad_w, pad_w, pad_h, pad_h))
+
+        # x_cpu: (N, C_in, H_p, W_p) -> Julia layout: (H_p, W_p, C_in, N)
+        x_np = x_cpu.numpy().astype('float32')
+        x_np_jl = x_np.transpose(2, 3, 1, 0).copy()  # H, W, C_in, N
+
+        # Weights: PyTorch (C_out, C_in, kh, kw) -> Julia (kh, kw, C_in, C_out)
+        W_torch = layer.weight.data.detach().cpu().numpy().astype('float32')
+        W_np_jl = W_torch.transpose(2, 3, 1, 0).copy()  # kh, kw, C_in, C_out
+
+        # Bias: (C_out,)
+        b_np = layer.bias.data.detach().cpu().numpy().astype('float32')
+
+        # Debug (optional)
+        # print(f"[Julia Conv] x {x_np_jl.shape}, w {W_np_jl.shape}, b {b_np.shape}")
+
+        # Call Julia serial conv2d
+        y_np_jl = julia_conv2d(x_np_jl, W_np_jl, b_np)
+        # Julia y: (H_out, W_out, C_out, N) -> PyTorch: (N, C_out, H_out, W_out)
+        y_np = y_np_jl.transpose(3, 2, 0, 1).copy()
+
+        y_tensor = torch.from_numpy(y_np).to(orig_device)
+        return y_tensor
+
+
     def forward(self, x):
         x = x.to(gpu)
         print("GPU", torch.cuda.is_available())
         print("Input device for conv:", x.device)
         # Block 1
-        x = self.conv1_1(x)
+        # x = self.conv1_1(x)
+        x = self._julia_conv2d_forward(self.conv1_1, x)
         if self.batch_norm: x = self.bn1_1(x)
         x = self.relu1_1(x)
-        x = self.conv1_2(x)
+        # x = self.conv1_2(x)
+        x = self._julia_conv2d_forward(self.conv1_2, x)
         if self.batch_norm: x = self.bn1_2(x)
         x = self.relu1_2(x)
         x = self.pool1(x)
         print("block 1 done")
 
         # Block 2
-        x = self.conv2_1(x)
+        # x = self.conv2_1(x)
+        x = self._julia_conv2d_forward(self.conv2_1, x)
         if self.batch_norm: x = self.bn2_1(x)
         x = self.relu2_1(x)
-        x = self.conv2_2(x)
+        # x = self.conv2_2(x)
+        x = self._julia_conv2d_forward(self.conv2_2, x)
         if self.batch_norm: x = self.bn2_2(x)
         x = self.relu2_2(x)
         x = self.pool2(x)
         print("block 2 done")
 
         # Block 3
-        x = self.conv3_1(x)
+        # x = self.conv3_1(x)
+        x = self._julia_conv2d_forward(self.conv3_1, x)
         if self.batch_norm: x = self.bn3_1(x)
         x = self.relu3_1(x)
-        x = self.conv3_2(x)
+        # x = self.conv3_2(x)
+        x = self._julia_conv2d_forward(self.conv3_2, x)
         if self.batch_norm: x = self.bn3_2(x)
         x = self.relu3_2(x)
-        x = self.conv3_3(x)
+        # x = self.conv3_3(x)
+        x = self._julia_conv2d_forward(self.conv3_3, x)
         if self.batch_norm: x = self.bn3_3(x)
         x = self.relu3_3(x)
         x = self.pool3(x)
         print("block 3 done")
 
         # Block 4
-        x = self.conv4_1(x)
+        # x = self.conv4_1(x)
+        x = self._julia_conv2d_forward(self.conv4_1, x)
         if self.batch_norm: x = self.bn4_1(x)
         x = self.relu4_1(x)
-        x = self.conv4_2(x)
+        # x = self.conv4_2(x)
+        x = self._julia_conv2d_forward(self.conv4_2, x)
         if self.batch_norm: x = self.bn4_2(x)
         x = self.relu4_2(x)
-        x = self.conv4_3(x)
+        # x = self.conv4_3(x)
+        x = self._julia_conv2d_forward(self.conv4_3, x)
         if self.batch_norm: x = self.bn4_3(x)
         x = self.relu4_3(x)
         x = self.pool4(x)
         print("block 4 done")
 
         # Block 5
-        x = self.conv5_1(x)
+        # x = self.conv5_1(x)
+        x = self._julia_conv2d_forward(self.conv5_1, x)
         if self.batch_norm: x = self.bn5_1(x)
         x = self.relu5_1(x)
-        x = self.conv5_2(x)
+        # x = self.conv5_2(x)
+        x = self._julia_conv2d_forward(self.conv5_2, x)
         if self.batch_norm: x = self.bn5_2(x)
         x = self.relu5_2(x)
         x = self.conv5_3(x)
