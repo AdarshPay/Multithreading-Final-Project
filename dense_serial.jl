@@ -29,30 +29,40 @@ function dense_serial(A::Matrix{Float32}, W::Matrix{Float32}, b::Vector{Float32}
     return out
 end
 
+using Base.Threads
+using LoopVectorization
 
-"""
-    dense_parallel(x, w, b)
-    MULTITHREADED ONLY: Threads, No Explicit SIMD
-"""
-function dense_threaded(A::Matrix{Float32}, W::Matrix{Float32}, b::Vector{Float32})
+function dense_threaded(A::Matrix{Float32}, W::Matrix{Float32}, b::Vector{Float32};
+                                 Ti::Int=16, Tj::Int=16)
     batch_size, in_features = size(A)
     _, out_features = size(W)
 
-    # Preallocate output
     output = Matrix{Float32}(undef, batch_size, out_features)
+    Wt = transpose(W)  # (out_features, in_features), contiguous in k
 
-    # Transpose W for memory-friendly access
-    Wt = W'  # Now Wt[j,k] instead of W[k,j], row-major for inner loop
+    # Number of tiles in each dimension
+    nTi = cld(batch_size, Ti)
+    nTj = cld(out_features, Tj)
 
-    # Flatten i,j loops for better thread load balancing
-    @threads for idx in 1:(batch_size*out_features)
-        i = (idx - 1) ÷ out_features + 1
-        j = (idx - 1) % out_features + 1
-        acc::Float32 = 0.0f0
-        @inbounds @simd for k in 1:in_features
-            acc += A[i, k] * Wt[j, k]   # contiguous access along k
+    @threads for tile_idx in 1:(nTi * nTj)
+        ti = (tile_idx - 1) ÷ nTj + 1
+        tj = (tile_idx - 1) % nTj + 1
+
+        i_start = (ti - 1) * Ti + 1
+        j_start = (tj - 1) * Tj + 1
+
+        i_end = min(i_start + Ti - 1, batch_size)
+        j_end = min(j_start + Tj - 1, out_features)
+
+        @inbounds for i in i_start:i_end
+            for j in j_start:j_end
+                acc::Float32 = 0.0f0
+                @turbo for k in 1:in_features
+                    acc += A[i, k] * Wt[j, k]
+                end
+                output[i, j] = acc + b[j]
+            end
         end
-        @inbounds output[i, j] = acc + b[j]
     end
 
     return output
